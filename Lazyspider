@@ -1,0 +1,262 @@
+#Based on python 2.7
+#由于连不上现有的队列，我自己做了一个爬虫程序
+#输入搜索关键字，抓取「哔站搜索结果」中的视频信息
+#脑子笨技术渣零基础，bug还有不少，希望大家看看还有没有救
+
+###########已知bug########
+#有时标题会出现乱码，求大佬指点；
+#按照页数抓取，不足一页（20个视频）可能会出现乱码（懒得改）
+#有时，排列顺序跟手动检索结果的顺序不同；
+#已知但不知道怎么说的bug
+#########################
+
+# -*- coding:utf-8 -*-
+import urllib
+import urllib2
+# import chardet
+
+import requests
+import re
+
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
+########关键字及页数
+keywords=raw_input('请输入搜索关键词：')
+keywords=str(keywords);
+pages=raw_input('请输入下载页数：')
+pages=int(pages);
+##################
+
+# requests工具箱请求服务器
+def getHTMLText(url, agent):
+    try:
+        headers = {'User-Agent': agent}
+        r = requests.get(url, timeout=15, headers=headers,stream=True)
+        r.raise_for_status()
+        r.encoding = r.apparent_encoding
+        return r.text
+    except:
+        return '肥肠抱歉，你要找的页面不见了'
+
+
+# Headers查询头
+agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36' \
+       ' (KHTML, like Gecko) Chrome/62.0.3202.62 ' \
+       'Safari/537.36 '
+
+########spider 函数完########
+#######搜索主页######
+searchurl = 'https://search.bilibili.com/api/search?search_type=all&keyword='+ keywords+'&page='+str(pages)
+respp = getHTMLText(searchurl, agent)
+#print 'respp',respp
+#print respp
+    #for i in range(1,20):
+#reg_searchurl = r'href="(.*?)"'
+#allvideos="".join(re.findall(reg_searchurl,respp))
+
+#######  get id & rankscore###############
+#######只要视频结果，滤掉搜索结果中的up主######
+# reg_avurl = r'"arcurl":"(.*?)","typeid'
+# allavurl=re.findall(reg_avurl,respp)
+
+reg_avurla = r'"favorites"(.*?)"typeid'
+allavurla="".join(re.findall(reg_avurla,respp))
+#print allavurla
+reg_avurl=r'"arcurl":"(.*?)",'
+allavurl=re.findall(reg_avurl,allavurla)
+#print allavurl
+
+reg_rankscore_a = r'"id":(.*?)"badgepay"'
+rankscore_a="".join(re.findall(reg_rankscore_a,respp))
+reg_rankscore= r'"rank_score":(.*?),'
+rankscore=re.findall(reg_rankscore,rankscore_a)
+#################################################
+
+
+f = open('keywords='+keywords +' pages='+str(pages)+ '.txt', 'a+')
+
+
+#####尝试着做了一下软着落，还是放弃了 - -！  ######
+#bannerurl='https://search.bilibili.com/api/search?search_type=all&keyword='+keywords+'&from_source=banner_search'
+#resp_banner=getHTMLText(bannerurl, agent)
+#reg_numPages=r'"numPages":(.*?),'
+#numPages=re.findall(reg_numPages,resp_banner)
+#print '可查到的信息页数：',numPages
+
+##爬
+for p in range(1, pages + 1):
+
+    for i in range(0, 20):  # 一页20个
+        f.write('Page:%s  No.%s' % (p, i+1) + '\n')
+        f.write('= = ' * 20 + '\n')
+        print '= = ' * 25 + '\n'
+        print 'Page', p, 'No.', i+1
+        rankscorenum = str(rankscore[i])
+        f.write('Rankscore:%s'%(rankscorenum) + '\n')
+        print 'rankscore:', rankscorenum;
+        urlx = str(allavurl[i])
+        # print 'urlx',urlx
+        #startspider(urlx,keywords)
+        #       print '\n\n'
+
+
+    #def startspider(url, keywords):
+        #  for numAv in range(115555, Query_Amount + 1):
+
+        # 视频相关目标avid
+        urltail = urlx + 'tail'
+        # print 'urltail',urltail
+        reg_urlid = r'/av(.*?)tail'
+        resp = getHTMLText(urlx, agent)
+        # print 'resp',resp
+        numAv = "".join(re.findall(reg_urlid, urltail))
+        # print numAv
+        url2 = 'https://api.bilibili.com/x/web-interface/archive/stat?aid=' + str(numAv)
+        resp2 = getHTMLText(url2, agent)
+        url3 = 'http://api.bilibili.com/x/tag/archive/tags?aid=' + str(numAv)
+        resp3 = getHTMLText(url3, agent)
+
+        # 视频相关正则表达式
+
+        reg_Title = r'<h1 title="(.*?)">'
+        reg_Author = r'report-id="name" class="name">(.*?)</a>'
+        reg_Space = r'/mid(.*?)"'
+        reg_Clicks = r'"view":(.*?),'
+        reg_Comments = r'"reply":(.*?),'
+        reg_Tags = r'"tag_name":"(.*?)",'
+        reg_Content = r'name="description" content="(.*?)"/><meta data-vue-meta='
+        reg_danmaku = r'"danmaku":(.*?),'
+        reg_Time = r'<time>(.*?)</time>'
+        reg_Coin = r'"coin":(.*?),'
+        reg_favorite = r'"favorite":(.*?),'
+        reg_share = r'"share":(.*?),'
+
+        # UP主相关目标url
+        up_ID = "".join(re.findall(reg_Space, resp))
+
+        # UP主相关相关正则表达式
+        reg_Fans = r'"follower":(.*?)}'
+        reg_Video = r'clearfix"><span title="(.*?)">'
+        #        reg_Mortal = r'"sign":"(.*?)",'
+        #        reg_Birthday = r'"birthday":"(.*?)",'
+        #        reg_Gender = r'"sex":"(.*?)",'
+        reg_field = r'&gt;(.*?)&gt;'
+
+        # 查询
+        title = "".join(re.findall(reg_Title, resp))
+        time = "".join(re.findall(reg_Time, resp))
+        space = 'http://space.bilibili.com/' + up_ID + '#'
+        fansurl = 'https://api.bilibili.com/x/relation/stat?vmid=' + up_ID + '&jsonp=jsonp&callback=__jp2'
+
+        resp4 = getHTMLText(fansurl, agent)
+        # print resp4
+        # numvideourl='https://space.bilibili.com/ajax/member/getSubmitVideos?mid='+ up_ID+'&pagesize=30&tid=0&page=1&keyword=&order=pubdate'
+        # numvideourl = 'https://api.bilibili.com/x/space/navnum?mid='+up_ID+'&jsonp=jsonp&callback=__jp0'
+        # numvideourl='https://space.bilibili.com/'+up_ID+'#/video'
+        # resp5=getHTMLText(numvideourl, agent)
+
+
+        author = "".join(re.findall(reg_Author, resp))
+        Videox = "".join(re.findall(reg_Video, resp))
+        Video = "".join(re.findall(r'\d', Videox))
+        clicks = "".join(re.findall(reg_Clicks, resp2))
+        comments = "".join(re.findall(reg_Comments, resp2))
+        fans = "".join(re.findall(reg_Fans, resp4))
+        tags = re.findall(reg_Tags, resp3)
+        content = "".join(re.findall(reg_Content, resp))
+        coin = "".join(re.findall(reg_Coin, resp2))
+        favorite = "".join(re.findall(reg_favorite, resp2))
+        danmaku = "".join(re.findall(reg_danmaku, resp2))
+        share = "".join(re.findall(reg_share, resp2))
+        # mortal = "".join(re.findall(reg_Mortal, resp4)).decode('unicode_escape')
+        # birthday = "".join(re.findall(reg_Birthday, resp4))
+        # gender = "".join(re.findall(reg_Gender, resp4)).decode('unicode_escape')
+        fieldx = "".join(re.findall(reg_field, resp))
+        regreg_field = r'/">(.*?)</a>'
+        field = "".join(re.findall(regreg_field, fieldx))
+
+        ###Up主空间向内容
+
+        # 内容为空时改为未填
+        if content == '':
+            content = '未填'
+
+            # 箴言为空时改为未填
+            # if mortal == '':
+            #     mortal = '未填'
+
+        # tag处理整合成字符串
+        if len(tags) == 0:
+            tags = '未填'
+        else:
+            temp = '[' + tags[0] + ']'
+            if len(tags) > 1:
+                for j in range(1, len(tags)):
+                    temp = temp + '; [' + tags[j] + ']'
+                tags = temp
+        tags = "".join(tags)
+
+        # 调试用输出
+        # print resp
+        # print resp2
+        # print resp3
+        # print
+        # print '正在查询：' + str(numAv) + '/' + str(Query_Amount)
+
+
+
+        f.write('视频分区:%s'%(field)+'\n')
+        f.write('视频分区：%s'%(field)+'\n')
+        f.write('视频编号：av%s'%(str(numAv))+'\n')
+        f.write('视频标题：%s'%(title)+'\n')
+        f.write('视频标签：%s'%( tags)+'\n')
+        f.write('视频内容：%s'%(content)+'\n')
+        f.write('视频点击量：%s'%(clicks)+'\n')
+        f.write('视频评论数：%s'%(comments)+'\n')
+        f.write('投稿时间：%s'%(time)+'\n')
+        f.write('投币数量:%s'%(coin)+'\n')
+        f.write('弹幕数量:%s'%(danmaku)+'\n')
+        f.write('收藏数量:%s'%(favorite)+'\n')
+        f.write('分享数量:%s'%(share)+'\n')
+        f.write('视频地址：%s'%(urlx)+'\n')
+
+        f.write('作者up主名：%s'%(author)+'\n')
+        f.write('up主ID：%s'%(up_ID)+'\n')
+        f.write('up主空间地址：%s'%(space)+'\n')
+        f.write('up主粉丝数：%s'%(fans)+'\n')
+        f.write('up主视频数：%s'%(Video)+'\n')
+        f.write('= = ' * 20 + '\n\n')
+
+
+        # print '视频分区：', field
+        # print '视频编号：av' + str(numAv)
+        # print '视频标题：', title
+        # print '视频标签：', tags
+        # print '视频内容：', content
+        # print '视频点击量：', clicks
+        # print '视频评论数：', comments
+        # print '投稿时间：', time
+        # print '投币数量:', coin
+        # print '弹幕数量:', danmaku
+        # print '收藏数量:', favorite
+        # print '分享数量:', share
+        # print '视频地址：', urlx
+        # print
+        # print '作者up主名：', author
+        # print 'up主ID：', up_ID
+        # print 'up主空间地址：', space
+        # print 'up主粉丝数：', fans
+        # print 'up主视频数：', Video
+        # # print 'up主性别：', gender
+        # # print 'up主生日：', birthday
+        # # print 'up主箴言：', mortal
+        # # print url
+        #return
+        ########################
+########################
+
+
+print 'Done'
+f.close()
